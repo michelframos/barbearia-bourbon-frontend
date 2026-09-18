@@ -1,0 +1,71 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --background: #0c1014;
+  --foreground: #f3eee4;
+  --foreground-muted: #9a9388;
+  --sidebar: #0a0e12;
+  --surface: #141a21;
+  --surface-elevated: #1a222c;
+  --surface-hover: #1f2933;
+  --border: #2a3340;
+  --accent: #c9a96a;
+  --accent-hover: #d4b87a;
+  --accent-foreground: #1a1408;
+  --accent-soft: color-mix(in srgb, var(--accent) 16%, transparent);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+  }
+
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100svh;
+    font-family: var(--font-sans);
+    background-color: var(--background);
+    color: var(--foreground);
+    -webkit-font-smoothing: antialiased;
+    background-image:
+      linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 28%),
+      radial-gradient(circle at 1px 1px, color-mix(in srgb, #fff 4%, transparent) 1px, transparent 0);
+    background-size: auto, 24px 24px;
+  }
+
+  #root {
+    min-height: 100svh;
+  }
+}
+
+@layer utilities {
+  .font-display {
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.35s ease-out both;
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
