@@ -63,3 +63,15 @@ export type AgendaGrade = {
   }
   slots: AgendaSlot[]
 }
+
+export type TrinksImportResult = {
+  criados: number
+  vinculados: number
+  ignorados: number
+  erros: string[]
+}
+
+export type TrinksExportResult = {
+  enviados: number
+  erros: string[]
+}

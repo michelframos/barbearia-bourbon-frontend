@@ -4,6 +4,8 @@ import type {
   AgendaGrade,
   Agendamento,
   AgendamentoPayload,
+  TrinksExportResult,
+  TrinksImportResult,
 } from '@/modules/agenda/types/agendamento'
 
 export const agendamentosApi = {
@@ -37,6 +39,18 @@ export const agendamentosApi = {
 
   cancel(id: number) {
     return httpClient<MutationResponse<Agendamento>>(`/agendamentos/${id}/cancelar`, {
+      method: 'POST',
+    })
+  },
+
+  importarTrinks() {
+    return httpClient<TrinksImportResult>('/agendamentos/trinks/importar', {
+      method: 'POST',
+    })
+  },
+
+  exportarTrinks() {
+    return httpClient<TrinksExportResult>('/agendamentos/trinks/exportar', {
       method: 'POST',
     })
   },

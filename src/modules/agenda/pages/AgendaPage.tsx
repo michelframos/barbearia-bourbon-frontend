@@ -1,10 +1,12 @@
-import { CalendarClock, ChevronLeft, ChevronRight, Plus, Settings2 } from 'lucide-react'
+import { CalendarClock, ChevronLeft, ChevronRight, Plus, RefreshCw, Settings2 } from 'lucide-react'
 import { useMemo, useState, type FormEvent } from 'react'
 
 import { AgendaGradeGrid } from '@/modules/agenda/components/AgendaGradeGrid'
 import { useAgenda } from '@/modules/agenda/hooks/useAgenda'
 import { useVisibleBarbeiros } from '@/modules/agenda/hooks/useVisibleBarbeiros'
-import type { Agendamento, AgendamentoPayload } from '@/modules/agenda/types/agendamento'
+import { agendamentosApi } from '@/modules/agenda/api/agendamentosApi'
+import type { Agendamento, AgendamentoPayload, TrinksImportResult } from '@/modules/agenda/types/agendamento'
+import { useEmpresaConfig } from '@/modules/empresa/hooks/useEmpresaConfig'
 import { useAssistentes } from '@/modules/assistentes/hooks/useAssistentes'
 import { useBarbeiros } from '@/modules/barbeiros/hooks/useBarbeiros'
 import { useClientes } from '@/modules/clientes/hooks/useClientes'
@@ -109,7 +111,8 @@ export function AgendaPage() {
   const [data, setData] = useState(todayIso)
   const hoje = todayIso()
   const isToday = data === hoje
-  const { grade, items, loading, error, create, update, cancel } = useAgenda(data, null)
+  const { grade, items, loading, error, reload, create, update, cancel } = useAgenda(data, null)
+  const { empresa } = useEmpresaConfig()
 
   const { items: clientes } = useClientes()
   const { items: assistentes } = useAssistentes()
@@ -124,6 +127,9 @@ export function AgendaPage() {
   const [saving, setSaving] = useState(false)
   const [cancelTarget, setCancelTarget] = useState<Agendamento | null>(null)
   const [cancelling, setCancelling] = useState(false)
+  const [sincronizando, setSincronizando] = useState(false)
+  const [syncErro, setSyncErro] = useState<string | null>(null)
+  const [syncResumo, setSyncResumo] = useState<TrinksImportResult | null>(null)
 
   const barbeirosAtivos = useMemo(
     () => barbeiros.filter((item) => item.status === 'a'),
@@ -268,6 +274,21 @@ export function AgendaPage() {
     }
   }
 
+  async function sincronizarTrinks() {
+    setSincronizando(true)
+    setSyncErro(null)
+    setSyncResumo(null)
+    try {
+      const resultado = await agendamentosApi.importarTrinks()
+      setSyncResumo(resultado)
+      await reload()
+    } catch (err) {
+      setSyncErro(err instanceof ApiError ? err.message : 'Falha ao sincronizar com a Thinks.')
+    } finally {
+      setSincronizando(false)
+    }
+  }
+
   return (
     <div className="animate-fade-in flex min-h-0 flex-1 flex-col gap-4">
       <PageHeader
@@ -275,12 +296,47 @@ export function AgendaPage() {
         description="Grade do dia por barbeiro."
         className="mb-0 shrink-0"
         actions={
-          <Button type="button" onClick={() => openCreate()}>
-            <Plus className="size-4" />
-            Novo agendamento
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            {empresa?.trinks_ativo ? (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => void sincronizarTrinks()}
+                disabled={sincronizando}
+              >
+                <RefreshCw className={cn('size-4', sincronizando && 'animate-spin')} />
+                {sincronizando ? 'Sincronizando…' : 'Sincronizar com a Thinks'}
+              </Button>
+            ) : null}
+            <Button type="button" onClick={() => openCreate()}>
+              <Plus className="size-4" />
+              Novo agendamento
+            </Button>
+          </div>
         }
       />
+
+      {syncErro ? (
+        <p className="shrink-0 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+          {syncErro}
+        </p>
+      ) : null}
+
+      {syncResumo ? (
+        <div className="shrink-0 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm">
+          <p>
+            Criados: {syncResumo.criados}. Vinculados: {syncResumo.vinculados}. Ignorados:{' '}
+            {syncResumo.ignorados}.
+          </p>
+          {syncResumo.erros.length > 0 ? (
+            <ul className="mt-2 list-disc space-y-1 pl-5 text-red-300">
+              {syncResumo.erros.map((item) => (
+                <li key={item}>{item}</li>
+              ))}
+            </ul>
+          ) : null}
+        </div>
+      ) : null}
 
       {/* Day toolbar */}
       <div className="flex shrink-0 flex-col gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)]/70 px-3 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-4">

@@ -23,6 +23,10 @@ export type Empresa = {
   momento_atribuicao_assistente: MomentoAtribuicaoAssistente
   cursor_sequencial_data: string | null
   status: string
+  trinks_ativo: boolean
+  trinks_estabelecimento_id: string | null
+  trinks_api_key_definida: boolean
+  trinks_webhook_url: string
 }
 
 export type EmpresaConfigPayload = {
@@ -41,6 +45,9 @@ export type EmpresaConfigPayload = {
   fonte_ordem_assistente?: FonteOrdemAssistente
   reset_cursor_assistente?: ResetCursorAssistente
   momento_atribuicao_assistente?: MomentoAtribuicaoAssistente
+  trinks_ativo?: boolean
+  trinks_estabelecimento_id?: string | null
+  trinks_api_key?: string | null
 }
 
 export type ConfigOperacional = {

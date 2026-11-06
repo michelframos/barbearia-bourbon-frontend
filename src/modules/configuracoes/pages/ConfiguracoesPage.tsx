@@ -1,7 +1,9 @@
-import { Building2, Bell, Clock, Monitor, Settings2 } from 'lucide-react'
+import { Building2, Bell, Clock, Link2, Monitor, Settings2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 
 import { useEmpresaConfig } from '@/modules/empresa/hooks/useEmpresaConfig'
+import { agendamentosApi } from '@/modules/agenda/api/agendamentosApi'
+import type { TrinksExportResult } from '@/modules/agenda/types/agendamento'
 import type {
   Empresa,
   FonteOrdemAssistente,
@@ -34,6 +36,9 @@ type FormState = {
   fonte_ordem_assistente: FonteOrdemAssistente
   reset_cursor_assistente: ResetCursorAssistente
   momento_atribuicao_assistente: MomentoAtribuicaoAssistente
+  trinks_ativo: boolean
+  trinks_estabelecimento_id: string
+  trinks_api_key: string
 }
 
 function formFromEmpresa(empresa: Empresa): FormState {
@@ -53,6 +58,9 @@ function formFromEmpresa(empresa: Empresa): FormState {
     fonte_ordem_assistente: empresa.fonte_ordem_assistente ?? 'manual',
     reset_cursor_assistente: empresa.reset_cursor_assistente ?? 'meia_noite',
     momento_atribuicao_assistente: empresa.momento_atribuicao_assistente ?? 'iniciar_atendimento',
+    trinks_ativo: empresa.trinks_ativo ?? false,
+    trinks_estabelecimento_id: empresa.trinks_estabelecimento_id ?? '',
+    trinks_api_key: '',
   }
 }
 
@@ -115,6 +123,8 @@ export function ConfiguracoesPage() {
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
+  const [exportando, setExportando] = useState(false)
+  const [exportResumo, setExportResumo] = useState<TrinksExportResult | null>(null)
 
   useEffect(() => {
     if (empresa) {
@@ -158,6 +168,20 @@ export function ConfiguracoesPage() {
       return
     }
 
+    if (form.trinks_ativo) {
+      if (!form.trinks_estabelecimento_id.trim()) {
+        setFormError('Informe o ID do estabelecimento na Trinks.')
+        setSaving(false)
+        return
+      }
+
+      if (!form.trinks_api_key.trim() && !empresa?.trinks_api_key_definida) {
+        setFormError('Informe a chave da API da Trinks.')
+        setSaving(false)
+        return
+      }
+    }
+
     try {
       await update({
         nome: form.nome.trim(),
@@ -175,12 +199,35 @@ export function ConfiguracoesPage() {
         fonte_ordem_assistente: form.fonte_ordem_assistente,
         reset_cursor_assistente: form.reset_cursor_assistente,
         momento_atribuicao_assistente: form.momento_atribuicao_assistente,
+        trinks_ativo: form.trinks_ativo,
+        trinks_estabelecimento_id: form.trinks_estabelecimento_id.trim() || null,
+        ...(form.trinks_api_key.trim() ? { trinks_api_key: form.trinks_api_key.trim() } : {}),
       })
       setSuccess('Configurações salvas com sucesso.')
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : 'Falha ao salvar configurações.')
     } finally {
       setSaving(false)
+    }
+  }
+
+  async function enviarLocais() {
+    setExportando(true)
+    setExportResumo(null)
+    setFormError(null)
+    setSuccess(null)
+    try {
+      const resultado = await agendamentosApi.exportarTrinks()
+      setExportResumo(resultado)
+      setSuccess(
+        resultado.erros.length > 0
+          ? `Enviados ${resultado.enviados} agendamento(s). Alguns não foram aceitos pela Trinks.`
+          : `Enviados ${resultado.enviados} agendamento(s) para a Trinks.`,
+      )
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : 'Falha ao enviar agendamentos para a Trinks.')
+    } finally {
+      setExportando(false)
     }
   }
 
@@ -453,6 +500,93 @@ export function ConfiguracoesPage() {
                 </Select>
               </div>
             </div>
+          </Section>
+
+          <Section
+            title="Trinks"
+            description="Integração de agendamentos com a API da Trinks."
+            icon={Link2}
+          >
+            <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--border)] px-4 py-3">
+              <div>
+                <p className="font-medium">Usar a API da Trinks</p>
+                <p className="text-sm text-[var(--foreground-muted)]">
+                  Com a integração ativa, criar, alterar e cancelar agendamentos também envia os dados à
+                  Trinks.
+                </p>
+              </div>
+              <Switch
+                checked={form.trinks_ativo}
+                onCheckedChange={(checked) =>
+                  setForm((prev) => prev && { ...prev, trinks_ativo: checked })
+                }
+                aria-label="Usar a API da Trinks"
+              />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor="cfg-trinks-estabelecimento">ID do estabelecimento</FieldLabel>
+                <Input
+                  id="cfg-trinks-estabelecimento"
+                  value={form.trinks_estabelecimento_id}
+                  onChange={(e) =>
+                    setForm((prev) => prev && { ...prev, trinks_estabelecimento_id: e.target.value })
+                  }
+                  autoComplete="off"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor="cfg-trinks-chave">Chave da API</FieldLabel>
+                <Input
+                  id="cfg-trinks-chave"
+                  type="password"
+                  value={form.trinks_api_key}
+                  onChange={(e) =>
+                    setForm((prev) => prev && { ...prev, trinks_api_key: e.target.value })
+                  }
+                  placeholder={
+                    empresa?.trinks_api_key_definida
+                      ? 'Chave já salva. Preencha só para substituir.'
+                      : 'Cole a chave da API'
+                  }
+                  autoComplete="new-password"
+                />
+              </div>
+            </div>
+            <div className="space-y-3 rounded-xl border border-[var(--border)] px-4 py-4">
+              <div>
+                <p className="font-medium">Webhook</p>
+                <p className="mt-1 text-sm text-[var(--foreground-muted)]">
+                  O webhook é o endereço que a Trinks chama quando um agendamento é criado, alterado ou
+                  cancelado lá. Este sistema recebe esses avisos e atualiza a agenda local. Nas
+                  configurações da Trinks, no campo de webhook do Conecta Trinks, informe somente este
+                  endereço:
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <FieldLabel htmlFor="cfg-trinks-webhook">URL para cadastrar na Trinks</FieldLabel>
+                <Input id="cfg-trinks-webhook" value={empresa?.trinks_webhook_url ?? ''} readOnly />
+              </div>
+              <p className="text-sm text-[var(--foreground-muted)]">
+                A Trinks envia todos os eventos para a mesma URL. Este sistema trata inclusão, alteração e
+                exclusão de agendamento. O endereço precisa ser HTTPS e acessível na internet. Um endereço
+                local, como localhost, não recebe os avisos da Trinks.
+              </p>
+            </div>
+            {empresa?.trinks_ativo ? (
+              <div className="space-y-3">
+                <Button type="button" variant="outline" disabled={exportando} onClick={() => void enviarLocais()}>
+                  {exportando ? 'Enviando…' : 'Enviar agendamentos locais para a Trinks'}
+                </Button>
+                {exportResumo && exportResumo.erros.length > 0 ? (
+                  <ul className="list-disc space-y-1 pl-5 text-sm text-red-300">
+                    {exportResumo.erros.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : null}
           </Section>
 
           {formError ? (
